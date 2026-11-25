@@ -1,0 +1,20 @@
+\getenv app_password ENTERPRISE_APP_PASSWORD
+\getenv migrator_password ENTERPRISE_MIGRATOR_PASSWORD
+CREATE ROLE enterprise_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'app_password';
+CREATE ROLE enterprise_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'migrator_password';
+REVOKE ALL ON DATABASE enterprise_db FROM PUBLIC;
+GRANT CONNECT ON DATABASE enterprise_db TO enterprise_app, enterprise_migrator;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO enterprise_app;
+GRANT USAGE, CREATE ON SCHEMA public TO enterprise_migrator;
+ALTER DEFAULT PRIVILEGES FOR ROLE enterprise_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO enterprise_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE enterprise_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO enterprise_app;
+CREATE DATABASE enterprise_test;
+\connect enterprise_test
+REVOKE ALL ON DATABASE enterprise_test FROM PUBLIC;
+GRANT CONNECT ON DATABASE enterprise_test TO enterprise_app, enterprise_migrator;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO enterprise_app;
+GRANT USAGE, CREATE ON SCHEMA public TO enterprise_migrator;
+ALTER DEFAULT PRIVILEGES FOR ROLE enterprise_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO enterprise_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE enterprise_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO enterprise_app;

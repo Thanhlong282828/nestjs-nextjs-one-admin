@@ -1,30 +1,43 @@
 {
-  "name": "aurum-admin",
-  "version": "0.1.0",
+  "name": "aurum-erp",
   "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint app --max-warnings 0"
-  },
-  "dependencies": {
-    "next": "16.4.6",
-    "react": "19.3.1",
-    "react-dom": "19.3.1",
-    "lucide-react": "^0.468.0"
-  },
-  "devDependencies": {
-    "@types/node": "^24.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "typescript": "^5.9.0",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "16.4.6"
+    "dev:admin": "npm run dev -w @aurum/admin",
+    "dev:api": "npm run dev -w @aurum/api",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "db:seed:development": "node --env-file-if-exists=.env.mysql --import tsx apps/api/scripts/seed-development.mjs",
+    "db:seed:module": "node --env-file-if-exists=.env.mysql --import tsx apps/api/scripts/seed-development.mjs",
+    "db:status": "node --env-file-if-exists=.env.mysql --import tsx apps/api/scripts/database-inspect.mjs status",
+    "db:health": "node --env-file-if-exists=.env.mysql --import tsx apps/api/scripts/database-inspect.mjs health",
+    "db:verify": "node --env-file-if-exists=.env.mysql --import tsx apps/api/scripts/database-inspect.mjs verify",
+    "lint": "eslint apps/admin apps/api packages scripts --max-warnings 0",
+    "test:architecture": "node --test scripts/architecture.test.mjs && node scripts/check-architecture.mjs"
   },
   "engines": {
     "node": ">=24 <25",
     "npm": "10.9.4"
   },
-  "packageManager": "npm@10.9.4"
+  "overrides": {
+    "@prisma/config": {
+      "effect": "3.22.5"
+    }
+  },
+  "packageManager": "npm@10.9.4",
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.6",
+    "globals": "^16.5.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.74.0"
+  }
 }

@@ -1,19 +1,72 @@
-name: Frontend quality
+name: Quality and security
 on: [push, pull_request]
 permissions:
   contents: read
 jobs:
   checks:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: aurum
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: aurum_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aurum -d aurum_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-password
+          MYSQL_DATABASE: aurum_nestjs_test
+          MYSQL_ROOT_HOST: '%'
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pci-only-password"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MYSQL_TEST_DATABASE_URL: mysql://root:ci-only-password@127.0.0.1:3307/aurum_nestjs_test
+      MYSQL_MIGRATION_TEST_DATABASE_URL: mysql://root:ci-only-password@127.0.0.1:3307/aurum_nestjs_test
+      HRM_TEST_DATABASE_URL: postgresql://aurum:test-only-password@127.0.0.1:5432/aurum_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24.13.1
           cache: npm
-      - run: npm install --global npm@10.9.4
+      - name: Pin npm for workspace override compatibility
+        run: npm install --global npm@10.9.4
+      - run: node --version && npm --version
       - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run build
+      - run: npm ls effect @prisma/config prisma
       - run: npm audit --audit-level=high
+      - run: npm run lint
+      - run: npm run test:architecture
+      - run: npm run typecheck
+      - name: Apply Prisma migrations to CI test database
+        run: npm run prisma:deploy -w @aurum/api
+        env:
+          MIGRATION_DATABASE_URL: mysql://root:ci-only-password@127.0.0.1:3307/aurum_nestjs_test
+      - run: npm run test
+      - run: npm run build
+      - run: npm run audit:prod
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3

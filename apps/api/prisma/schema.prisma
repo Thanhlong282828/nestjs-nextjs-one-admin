@@ -1,0 +1,96 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Company {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  name      String   @db.VarChar(150)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  branches    Branch[]
+  memberships CompanyMembership[]
+
+  @@map("companies")
+}
+
+
+model IdentityUser {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  email        String   @unique @db.VarChar(254)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  status       String   @default("active") @db.VarChar(16)
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  memberships  CompanyMembership[]
+  sessions     UserSession[]
+
+  @@map("identity_users")
+}
+
+model Branch {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  companyId String   @map("company_id") @db.VarChar(36)
+  name      String   @db.VarChar(150)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  grants    BranchGrant[]
+
+  @@unique([companyId, id])
+  @@index([companyId, name])
+  @@map("branches")
+}
+
+model CompanyMembership {
+  companyId  String   @map("company_id") @db.VarChar(36)
+  userId     String   @map("user_id") @db.VarChar(36)
+  status     String   @default("active") @db.VarChar(16)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user       IdentityUser @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  grants     BranchGrant[]
+
+  @@id([companyId, userId])
+  @@index([userId, status])
+  @@map("company_memberships")
+}
+
+model BranchGrant {
+  companyId  String @map("company_id") @db.VarChar(36)
+  userId     String @map("user_id") @db.VarChar(36)
+  branchId   String @map("branch_id") @db.VarChar(36)
+  membership CompanyMembership @relation(fields: [companyId, userId], references: [companyId, userId], onDelete: Restrict, onUpdate: Restrict)
+  branch     Branch @relation(fields: [companyId, branchId], references: [companyId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([companyId, userId, branchId])
+  @@index([companyId, branchId])
+  @@map("branch_grants")
+}
+
+
+model UserSession {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  tokenHash String   @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime @map("expires_at") @db.DateTime(3)
+  revokedAt DateTime? @map("revoked_at") @db.DateTime(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  user      IdentityUser @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@map("identity_sessions")
+}
+
+model AuthenticationAudit {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  userId     String?  @map("user_id") @db.VarChar(36)
+  event      String   @db.VarChar(32)
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.DateTime(3)
+
+  @@index([userId, occurredAt])
+  @@map("identity_auth_audit")
+}

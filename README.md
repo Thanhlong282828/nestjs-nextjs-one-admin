@@ -1,16 +1,7 @@
-# Aurum Admin
+# Aurum ERP — Admin và NestJS API
 
-Giao diện quản trị đang phát triển; chưa có đăng nhập hoặc kết nối dữ liệu thật.
+Repository chứa ứng dụng quản trị Next.js, NestJS API và các thư viện nghiệp vụ. Trang bán hàng nằm trong [repository product](https://github.com/Thanhlong282828/nestjs-nextjs-one-main-product). Đây là ảnh chụp mã từ workspace gốc; các repository không tự đồng bộ.
 
-Ứng dụng Next.js độc lập. NestJS API được quản lý và triển khai riêng, không nằm trong repository này. Không lưu database credentials hoặc dữ liệu khách hàng trong frontend.
+Cần Node 24.13.1 và npm 10.9.4. Chạy `npm ci`, `npm run dev:admin` và `npm run dev:api`. Xem [hướng dẫn MySQL](docs/MYSQL-SETUP.md), [bàn giao](docs/IMPLEMENTATION_HANDOFF.md) và [tiến độ](docs/PROGRESS.md). Không commit tệp môi trường thực.
 
-Yêu cầu Node.js 24.13.1 và npm 10.9.4.
-
-```sh
-npm ci
-npm run dev # http://localhost:3000
-```
-
-Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build`, `npm audit`. Không xem ứng dụng là production-ready khi chưa có API, xác thực và kiểm thử tương ứng.
-
-Mã nguồn gốc đang phát triển trong monorepo; repository này là bản tách tại thời điểm publish, không tự đồng bộ với monorepo.
+API hiện cung cấp health; identity/CQRS đang được xây dựng, chưa có API đăng nhập công khai hoặc phân quyền tenant hoàn chỉnh. Không sử dụng như hệ thống production.
