@@ -1,0 +1,5 @@
+# ADR 0003: Visual regression uses reviewed snapshots
+
+Use Playwright with fixed local Chrome executable, viewport, device scale, reduced motion and blocked external font downloads; the baseline is specific to this OS/browser/font stack. Screenshots contain only unavailable states, not fabricated business records. Baselines are checked by default; missing or changed files fail and are not automatically updated. Generate candidates explicitly and review before accepting updates. Do not use broad image thresholds or update snapshots in CI to silence failures. Pixel comparisons cannot certify accessibility, Safari or cross-machine equivalence; use separate semantic, browser and assistive technology testing. Production-like local servers are needed because development HMR assets are unstable.
+
+Update 06.6.3: Playwright is pinned to 1.65.1 and defaults to its managed Chromium revision 1255, not a personal Chrome executable; `AURUM_CHROME_PATH` remains an explicit local override. Candidate runs are isolated (`AURUM_VISUAL_CANDIDATES=0663`); baseline updates remain explicit and reviewed, never automatic in CI. Local and CI OS/font differences remain unverified.

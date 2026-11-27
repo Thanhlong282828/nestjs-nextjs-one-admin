@@ -1,3 +1,5 @@
+> **Chính sách hiện hành v3.0:** [REAL-DATA-GOVERNANCE](database/REAL-DATA-GOVERNANCE.md) ưu tiên đối với phân loại REAL/DEMO và phê duyệt ghi production; mô tả trạng thái các đoạn bên dưới mang tính lịch sử và phải đối chiếu checkpoint mới nhất. Hai tenant production là mục tiêu, chưa được chứng minh tồn tại hay an toàn.
+
 # Kiến trúc và kế hoạch an ninh
 
 ## Ranh giới triển khai
@@ -60,3 +62,12 @@ CP1.2: ghi success cùng session trong transaction serializable có khóa user v
 CP1.2.1 dùng Node 24.13.1/npm 10.9.4 pin trong dự án/CI sau khi npm11.8 báo invalid với override effect; Node24/npm10 clean install/ls/audit pass, không khẳng định lỗi npm11 đã sửa. `IdentityModule` chỉ là internal composition, không import AppModule; cần kiểm tra ESM/CJS bootstrap, race và cookie/CSRF/rate limit trước HTTP. Session rotation giới hạn user; audit logout/revoke/password change được ghi cùng transaction khi dùng audited adapter.
 
 CP1.2.2 bổ sung integration tests MySQL cho một số race và rollback password audit, và Nest runtime test lắng nghe loopback với auth route 404; không phải bằng chứng security tổng thể hay browser E2E. ESLint 9.39.5 hiện bị npm đánh dấu hết hỗ trợ; ESLint 10 có xung đột peer dependency trong lần thử, không dùng force. Dùng trong development/CI, audit hiện không báo vulnerability; cần nâng khi Next plugin hỗ trợ, theo dõi advisory. Audit hiện chưa bất biến hoặc chống sửa/xóa, cần thiết kế quyền DB, retention và tamper-evidence.
+
+## TypeScript-first v1.0
+[TypeScript standard](architecture/TYPESCRIPT-STANDARD.md) là luật bắt buộc; schema/type system không thay thế xác thực input, authentication, authorization, tenant isolation hay kiểm soát tiền/ngày. Gate `npm run test:typescript-policy` kiểm tra đường dẫn và allowlist, không kiểm chứng bảo mật hay semantic import; CI chạy gate nhưng kết quả GitHub thực tế chưa được xác minh. Database production owner policy v3.0 và connected data governance không thay đổi.
+
+### Batch 07.7.2.5 — test-only privilege review
+Runtime and migration principals are separated in restricted-principal HTTP and HRM browser tests. `identity_users` uses SELECT-only and login takes a shared locking read; classification/provenance are SELECT-only. The complete test grant matrix and direct-SQL limitations are documented in `docs/database/DATABASE-GOVERNANCE.md`. No claim of classification-aware tenant authorization or production readiness follows from those grants.
+
+### Batch 07.7.2.6 classification boundary
+HRM read and employee mutation transactions check persisted classification and explicit tenant track permissions together with current session, membership, branch grant and resource permission. Company and branch lists filter unclassified or unauthorized scope. This is not evidence of complete track isolation for caches, jobs, audit exports or reports; do not enable those without server-derived track context and negative isolation tests.

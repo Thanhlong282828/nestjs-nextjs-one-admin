@@ -3,11 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "node --env-file-if-exists=../../.env.mysql --import tsx --watch src/main.ts",
+    "dev": "node --import tsx scripts/dev-server.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/*.test.mjs",
-    "prisma:generate": "npm run build -w @aurum/identity && npm run build -w @aurum/company && prisma generate --config prisma.config.ts",
+    "test": "node --import tsx --test test/*.test.mjs && tsc -p tsconfig.integration.json && node --import tsx --test test/*.test.ts",
+    "prisma:generate": "npm run build -w @aurum/identity && npm run build -w @aurum/company && npm run build -w @aurum/hrm && prisma generate --config prisma.config.ts",
     "prebuild": "npm run prisma:generate",
     "pretypecheck": "npm run prisma:generate",
     "pretest": "npm run build",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@aurum/company": "file:../../packages/company",
+    "@aurum/hrm": "file:../../packages/hrm",
     "@aurum/identity": "file:../../packages/identity",
     "@nestjs/common": "12.6.0",
     "@nestjs/core": "12.6.0",
@@ -25,16 +26,17 @@
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "helmet": "^8.1.0",
+    "mariadb": "3.5.4",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
+    "@aurum/access": "file:../../packages/access",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.23.1",
     "prisma": "^7.10.1",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0",
-    "@aurum/access": "file:../../packages/access"
+    "typescript": "^5.9.0"
   }
 }

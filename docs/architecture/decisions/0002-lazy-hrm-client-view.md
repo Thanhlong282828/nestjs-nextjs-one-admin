@@ -1,0 +1,3 @@
+# ADR 0002: Load HRM presentation on demand
+
+The current admin uses client state to select Dashboard or HRM; HRM is not a separate URL. Load its presentation through `next/dynamic` only when selected, with an announced loading state. This reduces initial code required by dashboard when the generated chunk is actually requested lazily; verify network behavior and navigation before claiming savings. This does not change routes, API, tenant boundaries, or server database access. Trade-off: first opening HRM may wait for a chunk and must show a clear loading state. Revisit when HRM becomes an authenticated route. Measurements are local lab results, not user telemetry.

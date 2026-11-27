@@ -11,3 +11,14 @@ coverage
 apps/api/src/generated/prisma/
 
 !.env.enterprise.example
+
+# Local Playwright artifacts; reviewed baselines remain tracked.
+test-results/
+playwright-report/
+
+# Encrypted local database backups; never commit backups or keys.
+.aurum-local-backups/
+
+# Local backup identities; never commit private keys.
+.aurum-local-backup-keys/
+.next-e2e/

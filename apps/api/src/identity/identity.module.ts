@@ -8,11 +8,12 @@ import { PrismaIdentityQueryStore } from './prisma-identity-query.store';
 import { PrismaLoginStore } from './prisma-login.store';
 import { PrismaPasswordChangeStore } from './prisma-password-change.store';
 import { LoginBusHandler, LogoutBusHandler, LogoutAllBusHandler, RevokeSessionBusHandler, ChangePasswordBusHandler, CurrentUserBusHandler, UserSessionsBusHandler } from './cqrs/identity.handlers';
+import { SESSION_AUTHENTICATOR } from './http/session.guard';
 
 /** Internal composition only: never import into an HTTP app until security controls are complete. */
 @Module({})
 export class IdentityModule {
-  static forClient(client: PrismaClient, dummyHash: string): DynamicModule {
+  static forClient(client: PrismaClient, dummyHash: string, createLoginAuditId?: () => string): DynamicModule {
     const sessions = new SessionService(new PrismaAuditedSessionStore(client));
     const verifier = new VerifyCredentials(new PrismaCredentialReader(client), dummyHash);
     const queries = new PrismaIdentityQueryStore(client);
@@ -20,7 +21,8 @@ export class IdentityModule {
       module: IdentityModule,
       imports: [CqrsModule.forRoot()],
       providers: [
-        { provide: LoginCommandHandler, useValue: new LoginCommandHandler(verifier, new PrismaLoginStore(client)) },
+        { provide: LoginCommandHandler, useValue: new LoginCommandHandler(verifier, new PrismaLoginStore(client, createLoginAuditId)) },
+        { provide: SESSION_AUTHENTICATOR, useValue: sessions },
         { provide: LogoutCommandHandler, useValue: new LogoutCommandHandler(sessions) },
         { provide: LogoutAllCommandHandler, useValue: new LogoutAllCommandHandler(sessions) },
         { provide: RevokeSessionCommandHandler, useValue: new RevokeSessionCommandHandler(sessions) },
@@ -29,7 +31,7 @@ export class IdentityModule {
         { provide: GetUserSessionsQueryHandler, useValue: new GetUserSessionsQueryHandler(sessions, queries) },
         LoginBusHandler, LogoutBusHandler, LogoutAllBusHandler, RevokeSessionBusHandler, ChangePasswordBusHandler, CurrentUserBusHandler, UserSessionsBusHandler,
       ],
-      exports: [CqrsModule],
+      exports: [CqrsModule, SESSION_AUTHENTICATOR],
     };
   }
 }

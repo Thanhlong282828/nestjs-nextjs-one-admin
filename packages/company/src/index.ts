@@ -44,3 +44,22 @@ export class GetCompanyQueryHandler {
     return this.companies.findById(query.companyId);
   }
 }
+
+export type BranchView = Readonly<{ id: string; companyId: string; name: string }>;
+export interface BranchListReader {
+  findAuthorized(companyId: string, userId: string, branchIds: readonly string[] | null, offset: number, limit: number): Promise<readonly BranchView[]>;
+}
+export class ListBranchesQuery {
+  constructor(readonly principal: Principal | null, readonly companyId: string, readonly page: number, readonly pageSize: number) {}
+}
+export class ListBranchesQueryHandler {
+  constructor(private readonly branches: BranchListReader) {}
+  async execute(query: ListBranchesQuery): Promise<readonly BranchView[] | null> {
+    if (!Number.isSafeInteger(query.page) || query.page < 1 || query.page > 10000 || !Number.isSafeInteger(query.pageSize) || query.pageSize < 1 || query.pageSize > 100) throw new Error('Invalid branch list criteria');
+    if (!authorizeCompany(query.principal, query.companyId, 'branch.read').allowed || !query.principal) return null;
+    const membership = query.principal.memberships.find(item => item.companyId === query.companyId && item.status === 'active');
+    if (!membership) return null;
+    if (membership.branchIds !== null && membership.branchIds.length === 0) return [];
+    return this.branches.findAuthorized(query.companyId, query.principal.userId, membership.branchIds, (query.page - 1) * query.pageSize, query.pageSize);
+  }
+}

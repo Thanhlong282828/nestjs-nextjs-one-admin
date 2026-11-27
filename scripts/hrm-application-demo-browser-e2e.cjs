@@ -1,0 +1,28 @@
+const { createRequire } = require('node:module'), { spawn } = require('node:child_process'), net = require('node:net');
+const root = process.cwd(), req = createRequire(root + '/package.json'), { chromium } = req('@playwright/test'), { PrismaMariaDb } = req('@prisma/adapter-mariadb'), { PrismaClient } = req('./apps/api/dist/generated/prisma/client.js'), { hashPassword } = req('@aurum/identity');
+const { DEMO, provisionApplicationDemo } = req('./apps/api/scripts/application-demo-provisioner.ts');
+function target(raw, user) { if (!raw) throw Error('isolated test connection required'); const u = new URL(raw); if (u.protocol !== 'mysql:' || u.hostname !== '127.0.0.1' || u.port !== '3307' || u.pathname !== '/aurum_nestjs_test' || u.username !== user || u.search || u.hash) throw Error('refusing non-test target'); return raw; }
+const migration = target(process.env.MYSQL_MIGRATION_PRIVILEGE_TEST_URL, 'aurum_migrate_test'), runtime = target(process.env.MYSQL_RUNTIME_PRIVILEGE_TEST_URL, 'aurum_runtime_test');
+const db = new PrismaClient({ adapter: new PrismaMariaDb(migration) }), pass = process.env.AURUM_APPLICATION_DEMO_TEST_PASSWORD; if (!pass || pass.length < 16) throw Error('stable test password required'); let api, front, browser;
+const port = () => new Promise((resolve, reject) => { const server = net.createServer(); server.on('error', reject); server.listen(0, '127.0.0.1', () => { const address = server.address(); server.close(() => resolve(address.port)); }); });
+const wait = async (url, proc) => { for (let i = 0; i < 100; i++) { if (proc.exitCode !== null) throw Error('server exited'); try { if ((await fetch(url)).status < 500) return; } catch {} await new Promise(resolve => setTimeout(resolve, 300)); } throw Error('server timeout'); };
+(async () => { try {
+  const targetRows = await db.$queryRaw`SELECT DATABASE() AS db`; if (targetRows[0]?.db !== 'aurum_nestjs_test') throw Error('database mismatch');
+  process.env.NODE_ENV = 'test'; console.log('driver=mysql host=127.0.0.1 port=3307 database=aurum_nestjs_test environment=test operation=provision');
+  const applied = await provisionApplicationDemo(migration, pass); if (applied !== 'created' && applied !== 'unchanged') throw Error('unexpected provisioning result');
+  if (await provisionApplicationDemo(migration, pass) !== 'unchanged') throw Error('idempotency failed');
+  const apiPort = await port(), uiPort = await port();
+  const apiEnv = { ...process.env, NODE_ENV: 'test', DATABASE_URL: runtime, AURUM_ENABLE_DEVELOPMENT_AUTH: '1', AURUM_AUTH_ORIGINS: `http://127.0.0.1:${uiPort}`, AURUM_AUTH_DUMMY_HASH: await hashPassword('test-only-unrelated-password-123'), AURUM_API_PORT: String(apiPort) };
+  for (const key of Object.keys(apiEnv)) if (key.includes('MIGRATION') || key.startsWith('MYSQL_') || key === 'AURUM_APPLICATION_DEMO_TEST_PASSWORD') delete apiEnv[key];
+  api = spawn(process.execPath, ['apps/api/dist/main.js'], { cwd: root, env: apiEnv, stdio: 'ignore' }); await wait(`http://127.0.0.1:${apiPort}/health`, api);
+  const uiEnv = { ...process.env, NEXT_PUBLIC_AURUM_LOCAL_API_PORT: String(apiPort), AURUM_NEXT_TEST_DIST_DIR: '1' }; delete uiEnv.NODE_ENV; for (const key of Object.keys(uiEnv)) if (key.includes('MIGRATION') || key.startsWith('MYSQL_') || key === 'DATABASE_URL' || key === 'AURUM_APPLICATION_DEMO_TEST_PASSWORD') delete uiEnv[key];
+  front = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', 'apps/admin', '--hostname', '127.0.0.1', '--port', String(uiPort)], { cwd: root, env: uiEnv, stdio: 'ignore' }); await wait(`http://127.0.0.1:${uiPort}`, front);
+  browser = await chromium.launch({ headless: true }); const page = await browser.newPage({ viewport: { width: 1280, height: 900 } }); await page.goto(`http://127.0.0.1:${uiPort}`);
+  await page.getByRole('button', { name: 'Nhân sự', exact: true }).click(); await page.getByLabel('Email').fill(DEMO.email); await page.getByLabel('Mật khẩu').fill(pass); await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  await page.getByLabel('Chọn công ty').selectOption(DEMO.companyId); await page.getByLabel('Chọn chi nhánh').selectOption(DEMO.branchId);
+  await page.getByRole('button', { name: '[DEMO] Nhân viên mẫu', exact: true }).waitFor(); await page.getByText('[DEMO] Vận hành', { exact: true }).waitFor();
+  const result = await page.evaluate(async ({ apiPort, companyId, branchId }) => { const q = `companyId=${encodeURIComponent(companyId)}&branchId=${encodeURIComponent(branchId)}`; const response = await fetch(`http://127.0.0.1:${apiPort}/api/v1/hrm/employees?${q}`, { credentials: 'include' }); if (!response.ok) throw Error('API request failed'); return response.json(); }, { apiPort, companyId: DEMO.companyId, branchId: DEMO.branchId });
+  if (result.total !== 1 || result.items[0]?.id !== DEMO.employeeId || await db.employee.count({ where: { companyId: DEMO.companyId } }) !== 1) throw Error('database and API disagree');
+  await page.reload(); await page.getByRole('button', { name: 'Nhân sự', exact: true }).click(); await page.getByLabel('Chọn công ty').selectOption(DEMO.companyId); await page.getByLabel('Chọn chi nhánh').selectOption(DEMO.branchId); await page.getByRole('button', { name: '[DEMO] Nhân viên mẫu', exact: true }).waitFor();
+  console.log('PASS application DEMO provisioner -> restricted runtime -> API -> Admin and reload on isolated MySQL test');
+} catch (error) { console.error('FAIL application DEMO browser:', error.message); process.exitCode = 1; } finally { await browser?.close(); for (const p of [front, api]) if (p && p.exitCode === null) p.kill('SIGTERM'); await db.$disconnect(); } })();

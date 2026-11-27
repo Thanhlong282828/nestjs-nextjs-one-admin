@@ -15,7 +15,7 @@ export class PrismaLoginStore implements LoginStore {
       const rows = await tx.$queryRaw<{ id: string }[]>`
         SELECT id FROM identity_users WHERE id = ${input.session.userId}
           AND BINARY status = BINARY 'active'
-          AND BINARY password_hash = BINARY ${input.expectedPasswordHash} FOR UPDATE
+          AND BINARY password_hash = BINARY ${input.expectedPasswordHash} FOR SHARE
       `;
       if (rows.length !== 1) return false;
       if (input.previousTokenHash) {

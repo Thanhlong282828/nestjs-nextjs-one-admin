@@ -15,8 +15,45 @@ model Company {
 
   branches    Branch[]
   memberships CompanyMembership[]
+  demoOwnership DemoOwnership[]
+  tenantClassification TenantClassification?
 
   @@map("companies")
+}
+
+// Additive classification sidecar; existing companies are not implicitly classified.
+model TenantClassification {
+  companyId String @id @map("company_id") @db.VarChar(36)
+  classification String @db.VarChar(4)
+  provenance String @db.VarChar(128)
+  sourceReference String? @map("source_reference") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "tenant_classification_company_fkey")
+  branches ClassifiedBranchScope[]
+  @@unique([companyId, classification], map: "tenant_classification_company_kind_key")
+  @@map("tenant_classification")
+}
+
+model ClassifiedBranchScope {
+  companyId String @map("company_id") @db.VarChar(36)
+  branchId String @map("branch_id") @db.VarChar(36)
+  classification String @db.VarChar(4)
+  tenant TenantClassification @relation(fields: [companyId, classification], references: [companyId, classification], onDelete: Restrict, onUpdate: Restrict, map: "classified_branch_tenant_fkey")
+  branch Branch @relation(fields: [companyId, branchId], references: [companyId, id], onDelete: Restrict, onUpdate: Restrict, map: "classified_branch_branch_fkey")
+  @@id([companyId, branchId])
+  @@map("classified_branch_scope")
+}
+
+// Test-only provisioning ownership; not a production REAL/DEMO tenant classification.
+model DemoOwnership {
+  id String @id @db.VarChar(36)
+  companyId String @map("company_id") @db.VarChar(36)
+  kind String @db.VarChar(16)
+  fingerprint String @db.Char(64)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([companyId, kind], map: "demo_ownership_company_kind_idx")
+  @@map("demo_ownership")
 }
 
 
@@ -28,6 +65,9 @@ model IdentityUser {
   createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
   memberships  CompanyMembership[]
   sessions     UserSession[]
+  hrmReadAudits HrmReadAudit[]
+  hrmEmployeeAudits HrmEmployeeAudit[]
+  hrmSecurityAudits HrmSecurityAudit[]
 
   @@map("identity_users")
 }
@@ -39,10 +79,57 @@ model Branch {
   createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   grants    BranchGrant[]
+  departments Department[]
+  hrmReadAudits HrmReadAudit[]
+  hrmEmployeeAudits HrmEmployeeAudit[]
+  classifiedScope ClassifiedBranchScope[]
 
   @@unique([companyId, id])
   @@index([companyId, name])
   @@map("branches")
+}
+
+model HrmReadAudit {
+  id String @id @default(uuid()) @db.VarChar(36)
+  userId String @map("user_id") @db.VarChar(36)
+  companyId String @map("company_id") @db.VarChar(36)
+  branchId String @map("branch_id") @db.VarChar(36)
+  resource String @db.VarChar(32)
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.DateTime(3)
+  user IdentityUser @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  branch Branch @relation(fields: [companyId, branchId], references: [companyId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([companyId, branchId, occurredAt], map: "hrm_read_audit_scope_time_idx")
+  @@index([userId, occurredAt], map: "hrm_read_audit_user_time_idx")
+  @@map("hrm_read_audit")
+}
+
+model HrmSecurityAudit {
+  id String @id @default(uuid()) @db.VarChar(36)
+  userId String @map("user_id") @db.VarChar(36)
+  event String @db.VarChar(32)
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.DateTime(3)
+  user IdentityUser @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId, occurredAt], map: "hrm_security_audit_user_time_idx")
+  @@map("hrm_security_audit")
+}
+
+model HrmEmployeeAudit {
+  id String @id @default(uuid()) @db.VarChar(36)
+  userId String @map("user_id") @db.VarChar(36)
+  companyId String @map("company_id") @db.VarChar(36)
+  branchId String @map("branch_id") @db.VarChar(36)
+  employeeId String @map("employee_id") @db.VarChar(36)
+  action String @db.VarChar(16)
+  before Json?
+  after Json
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.DateTime(3)
+  user IdentityUser @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  branch Branch @relation(fields: [companyId, branchId], references: [companyId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([companyId, branchId, employeeId, occurredAt], map: "hrm_employee_audit_scope_idx")
+  @@map("hrm_employee_audit")
 }
 
 model CompanyMembership {
@@ -53,10 +140,21 @@ model CompanyMembership {
   company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   user       IdentityUser @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   grants     BranchGrant[]
+  permissions MembershipPermission[]
 
   @@id([companyId, userId])
   @@index([userId, status])
   @@map("company_memberships")
+}
+
+model MembershipPermission {
+  companyId String @map("company_id") @db.VarChar(36)
+  userId String @map("user_id") @db.VarChar(36)
+  permission String @db.VarChar(80)
+  membership CompanyMembership @relation(fields: [companyId, userId], references: [companyId, userId], onDelete: Restrict, onUpdate: Restrict, map: "membership_permissions_membership_fkey")
+
+  @@id([companyId, userId, permission])
+  @@map("membership_permissions")
 }
 
 model BranchGrant {
@@ -93,4 +191,49 @@ model AuthenticationAudit {
 
   @@index([userId, occurredAt])
   @@map("identity_auth_audit")
+}
+
+model Department {
+  id        String @id @default(uuid()) @db.VarChar(36)
+  companyId String @map("company_id") @db.VarChar(36)
+  branchId  String @map("branch_id") @db.VarChar(36)
+  code      String @db.VarChar(32)
+  name      String @db.VarChar(150)
+  branch    Branch @relation(fields: [companyId, branchId], references: [companyId, id], onDelete: Restrict, onUpdate: Restrict, map: "hrm_departments_branch_fkey")
+  employees Employee[]
+
+  @@unique([companyId, branchId, id], map: "hrm_departments_company_branch_id_key")
+  @@unique([companyId, branchId, code], map: "hrm_departments_company_branch_code_key")
+  @@map("hrm_departments")
+}
+
+model Employee {
+  id           String @id @default(uuid()) @db.VarChar(36)
+  companyId    String @map("company_id") @db.VarChar(36)
+  branchId     String @map("branch_id") @db.VarChar(36)
+  departmentId String @map("department_id") @db.VarChar(36)
+  code         String @db.VarChar(32)
+  fullName     String @map("full_name") @db.VarChar(150)
+  status       String @default("active") @db.VarChar(16)
+  department   Department @relation(fields: [companyId, branchId, departmentId], references: [companyId, branchId, id], onDelete: Restrict, onUpdate: Restrict, map: "hrm_employees_department_fkey")
+  attendance   Attendance[]
+
+  @@unique([companyId, branchId, id], map: "hrm_employees_company_branch_id_key")
+  @@unique([companyId, code], map: "hrm_employees_company_code_key")
+  @@index([companyId, branchId, departmentId, status], map: "hrm_employees_scope_department_status_idx")
+  @@map("hrm_employees")
+}
+
+model Attendance {
+  id         String @id @default(uuid()) @db.VarChar(36)
+  companyId  String @map("company_id") @db.VarChar(36)
+  branchId   String @map("branch_id") @db.VarChar(36)
+  employeeId String @map("employee_id") @db.VarChar(36)
+  workDate   DateTime @map("work_date") @db.Date
+  status     String @db.VarChar(16)
+  employee   Employee @relation(fields: [companyId, branchId, employeeId], references: [companyId, branchId, id], onDelete: Restrict, onUpdate: Restrict, map: "hrm_attendance_employee_fkey")
+
+  @@unique([companyId, branchId, employeeId, workDate], map: "hrm_attendance_scope_employee_date_key")
+  @@index([companyId, branchId, workDate], map: "hrm_attendance_scope_date_idx")
+  @@map("hrm_attendance")
 }

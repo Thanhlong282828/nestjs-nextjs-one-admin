@@ -34,3 +34,19 @@ export function authorizeBranch(principal: Principal | null, companyId: string, 
   if (!membership || (membership.branchIds !== null && !membership.branchIds.includes(branch.id))) return denied('forbidden');
   return { allowed: true, reason: 'allowed' };
 }
+
+/** Candidate policy: both track context and classification must be loaded by the server, never the request body. */
+export function authorizeClassifiedBranch(
+  principal: Principal | null,
+  companyId: string,
+  branch: Readonly<{ id: string; companyId: string }>,
+  permission: string,
+  serverTrack: unknown,
+  record: Readonly<{ companyId: string; classification: unknown; provenance: unknown; sourceReference: unknown }> | null,
+): Decision {
+  const access = authorizeBranch(principal, companyId, branch, permission);
+  if (!access.allowed) return access;
+  if ((serverTrack !== 'REAL' && serverTrack !== 'DEMO') || !record || record.companyId !== companyId || record.classification !== serverTrack || typeof record.provenance !== 'string' || !record.provenance.trim()) return denied('forbidden');
+  if (serverTrack === 'REAL' && (typeof record.sourceReference !== 'string' || !record.sourceReference.trim())) return denied('forbidden');
+  return { allowed: true, reason: 'allowed' };
+}

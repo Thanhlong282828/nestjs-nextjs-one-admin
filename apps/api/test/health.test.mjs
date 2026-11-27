@@ -17,6 +17,7 @@ async function availablePort() {
 async function withServer(databaseUrl, callback) {
   const port = await availablePort();
   const env = { ...process.env, AURUM_API_PORT: String(port), DATABASE_URL: databaseUrl };
+  for (const key of Object.keys(env)) if (key.includes('MIGRATION') || key.startsWith('MYSQL_')) delete env[key];
   const server = spawn(process.execPath, ['--import', 'tsx', 'src/main.ts'], { stdio: 'ignore', env });
   try {
     let response;

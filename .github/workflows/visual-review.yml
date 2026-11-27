@@ -1,0 +1,39 @@
+name: Visual regression (manual review)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm install --global npm@10.9.4
+      - run: npm ci
+      - name: Install pinned Playwright Chromium
+        run: npx playwright install chromium
+      - run: npm run build -w @aurum/admin && npm run build -w @aurum/khach
+      - name: Start production local servers
+        run: |
+          ./node_modules/.bin/next start apps/admin -p 3190 -H 127.0.0.1 > /tmp/aurum-admin.log 2>&1 &
+          ./node_modules/.bin/next start apps/khach -p 3101 -H 127.0.0.1 > /tmp/aurum-product.log 2>&1 &
+          for i in {1..60}; do curl -fsS http://127.0.0.1:3190/ > /dev/null && curl -fsS http://127.0.0.1:3101/ > /dev/null && exit 0; sleep 1; done
+          cat /tmp/aurum-admin.log /tmp/aurum-product.log
+          exit 1
+      - name: Compare reviewed baselines without updating
+        run: npm run test:visual
+      - name: Upload visual failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: |
+            test-results/
+            /tmp/aurum-admin.log
+            /tmp/aurum-product.log
+          if-no-files-found: warn

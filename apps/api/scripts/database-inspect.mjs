@@ -14,6 +14,6 @@ try {
     const companies = await prisma.company.findMany({ where: { id: { in: ['909a923a-dd52-4b61-a81e-f777fb140001', '909a923a-dd52-4b61-a81e-f777fb140002'] } }, select: { id: true, name: true } });
     const expected = new Map([['909a923a-dd52-4b61-a81e-f777fb140001', '[DEMO] Công ty Ánh Dương'], ['909a923a-dd52-4b61-a81e-f777fb140002', '[DEMO] Công ty Minh Châu']]);
     if (companies.length !== expected.size || companies.some(company => expected.get(company.id) !== company.name)) throw new Error('Development company demo records missing or changed');
-    console.log('Development company demo records verified.');
+    console.log('Two expected development company IDs and names matched; REAL/DEMO classification was not verified.');
   }
 } finally { await prisma.$disconnect(); }
